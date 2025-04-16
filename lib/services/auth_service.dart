@@ -54,4 +54,57 @@ class AuthService {
     }
   }
 
+  static Future<void> resetPassword({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    final url = Uri.parse('$baseUrl/reset-password');
+    final response = await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'email': email,
+        'code': code,
+        'newPassword': newPassword,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception(jsonDecode(response.body)['message'] ?? 'Failed to reset password');
+    }
+  }
+
+
+  static Future<void> verifyResetCode({
+    required String email,
+    required String code,
+  }) async {
+    final url = Uri.parse('$baseUrl/verify-code');
+    final response = await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'email': email,
+        'code': code,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception(jsonDecode(response.body)['message'] ?? 'Invalid code');
+    }
+  }
+
+  static Future<void> requestPasswordReset(String email) async {
+    final url = Uri.parse('$baseUrl/request-reset');
+    final response = await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email}),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception(jsonDecode(response.body)['message'] ?? 'Failed to send reset code');
+    }
+  }
 }
