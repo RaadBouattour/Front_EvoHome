@@ -26,7 +26,6 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                 onPressed: () => Navigator.pop(context),
               ),
 
-              // ✅ Update this if you're using PNG instead of JPG
               Image.asset('assets/images/reset_password_illustration.jpg', height: 200),
 
               const SizedBox(height: 20),
@@ -64,7 +63,6 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
               const SizedBox(height: 24),
 
-              // ✅ Updated button with white text & full design match
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -82,7 +80,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                   child: const Text(
                     'Confirm',
                     style: TextStyle(
-                      color: Colors.white, // ✅ white text
+                      color: Colors.white,
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
                     ),

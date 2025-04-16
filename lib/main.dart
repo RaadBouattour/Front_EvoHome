@@ -1,4 +1,5 @@
 import 'package:evo_home_app/screens/forgot_password_screen.dart';
+import 'package:evo_home_app/screens/home_screen.dart';
 import 'package:evo_home_app/screens/login_screen.dart';
 import 'package:evo_home_app/screens/reset_password_screen.dart';
 import 'package:evo_home_app/screens/signup_screen.dart';
@@ -21,6 +22,7 @@ class EvoHomeApp extends StatelessWidget {
       routes: {
         '/': (_) => const SplashScreen(),
         '/intro': (_) => const IntroScreen(),
+        '/home': (_) => const HomeScreen(),
         '/login': (_) => const LoginScreen(),
         '/signup': (_) => const SignUpScreen(),
         '/forgot-password': (_) => const ForgotPasswordScreen(),

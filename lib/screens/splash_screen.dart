@@ -15,14 +15,12 @@ class _SplashScreenState extends State<SplashScreen> {
   void initState() {
     super.initState();
 
-    // Animate logo switch after 800ms
     Future.delayed(const Duration(milliseconds: 800), () {
       setState(() {
         _showFullLogo = true;
       });
     });
 
-    // Navigate after 2 seconds
     Future.delayed(const Duration(seconds: 2), () {
       Navigator.pushReplacementNamed(context, '/intro');
     });
@@ -35,7 +33,6 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Logo Animation (Switch between part and full)
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 1500),
               child: _showFullLogo
@@ -53,7 +50,6 @@ class _SplashScreenState extends State<SplashScreen> {
 
             const SizedBox(height: 24),
 
-            // 👇 Loading Spinner added here
             const LoadingSpinner(),
           ],
         ),

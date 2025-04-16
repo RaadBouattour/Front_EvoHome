@@ -11,9 +11,8 @@ class IntroScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // 👇 This controls image position and size
             Padding(
-              padding: const EdgeInsets.only(top: 60), // Increase/decrease to move image down/up
+              padding: const EdgeInsets.only(top: 60),
               child: Image.asset(
                 'assets/images/smart_home_illustration.png',
                 height: 260, // Optional: control image height
