@@ -1,0 +1,39 @@
+{
+    "chambres": [
+        {
+            "id": 1,
+            "nom": "Salon"
+        }
+    ],
+    "actionneurs": [
+        {
+            "pin": "D9",
+            "type": "Servo Moteur"
+        }
+    ],
+    "proprietes": [
+        {
+            "propertyname": "etat",
+            "valeur": "FERME"
+        }
+    ],
+    "schedules": [
+        {
+            "debut": "07:30",
+            "fin": "08:30"
+        }
+    ],
+    "sensors": [
+        {
+            "id": 1,
+            "pin": "A0",
+            "type": "DHT11"
+        }
+    ],
+    "valeurs": [
+        {
+            "valeur": 24.7,
+            "date": "2025-04-16T20:25:53.979071"
+        }
+    ]
+}

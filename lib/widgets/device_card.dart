@@ -5,6 +5,8 @@ class DeviceCard extends StatefulWidget {
   final String title;
   final String subtitle;
   final bool initialState;
+  final Future<void> Function(bool)? onToggle;
+  final VoidCallback? onTap; // ✅ new
 
   const DeviceCard({
     super.key,
@@ -12,6 +14,8 @@ class DeviceCard extends StatefulWidget {
     required this.title,
     required this.subtitle,
     this.initialState = false,
+    this.onToggle,
+    this.onTap, // ✅ new
   });
 
   @override
@@ -30,21 +34,14 @@ class _DeviceCardState extends State<DeviceCard> {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () {
-        // 🔁 TODO: navigate to device detail screen
-        Navigator.pushNamed(context, '/device-detail');
-      },
+      onTap: widget.onTap, // ✅ delegated to parent
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isOn ? const Color(0xFF1C1C2E) : const Color(0xFF2E2E42),
           borderRadius: BorderRadius.circular(20),
           boxShadow: const [
-            BoxShadow(
-              color: Colors.black26,
-              blurRadius: 6,
-              offset: Offset(0, 4),
-            ),
+            BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 4)),
           ],
         ),
         child: Column(
@@ -52,27 +49,18 @@ class _DeviceCardState extends State<DeviceCard> {
           children: [
             Icon(widget.icon, color: isOn ? Colors.yellow : Colors.white38, size: 28),
             const Spacer(),
-            Text(
-              widget.title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-              ),
-            ),
-            Text(
-              widget.subtitle,
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 12,
-              ),
-            ),
+            Text(widget.title, style: const TextStyle(color: Colors.white, fontSize: 16)),
+            Text(widget.subtitle, style: const TextStyle(color: Colors.white70, fontSize: 12)),
             const Spacer(),
             Align(
               alignment: Alignment.bottomRight,
               child: Switch(
                 value: isOn,
-                onChanged: (val) {
+                onChanged: (val) async {
                   setState(() => isOn = val);
+                  if (widget.onToggle != null) {
+                    await widget.onToggle!(val);
+                  }
                 },
                 activeColor: Colors.yellow,
                 inactiveTrackColor: Colors.white24,

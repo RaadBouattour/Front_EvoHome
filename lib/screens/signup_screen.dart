@@ -12,7 +12,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final TextEditingController _firstNameController = TextEditingController();
   final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
   bool _obscurePassword = true;
@@ -26,7 +25,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
         lastname: _lastNameController.text.trim(),
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
-        phone: _phoneController.text.trim(),
       );
 
       _showSuccessDialog();
@@ -146,17 +144,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 keyboardType: TextInputType.emailAddress,
                 decoration: InputDecoration(
                   labelText: 'EMAIL ID',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Phone
-              TextField(
-                controller: _phoneController,
-                keyboardType: TextInputType.phone,
-                decoration: InputDecoration(
-                  labelText: 'PHONE NUMBER',
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                 ),
               ),

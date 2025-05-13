@@ -1,52 +1,71 @@
 import 'package:flutter/material.dart';
 
 class EnvironmentCard extends StatelessWidget {
-  const EnvironmentCard({super.key});
+  final Map<String, dynamic> data;
+
+  const EnvironmentCard({super.key, this.data = const {}});
 
   @override
   Widget build(BuildContext context) {
+    final items = data.entries.toList();
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF828094), // Gray background
+        color: const Color(0xFF828094),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
-              _InfoItem(
-                icon: Icons.thermostat,
-                value: '26 C',
-                label: 'Temprature',
-              ),
-              _InfoItem(
-                icon: Icons.opacity,
-                value: '35%',
-                label: 'Humidity',
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
-              _InfoItem(
-                icon: Icons.bolt,
-                value: '256 k',
-                label: 'Energy Usage',
-              ),
-              _InfoItem(
-                icon: Icons.light_mode,
-                value: '50%',
-                label: 'Light intensity',
-              ),
-            ],
-          ),
-        ],
+        children: List.generate((items.length / 2).ceil(), (rowIndex) {
+          final rowItems = items.skip(rowIndex * 2).take(2).toList();
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 20),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: rowItems.map((entry) {
+                final sensorType = entry.key;
+                final value = entry.value.toString();
+                return _InfoItem(
+                  icon: _getIconForSensor(sensorType),
+                  value: value,
+                  label: _getLabelForSensor(sensorType),
+                );
+              }).toList(),
+            ),
+          );
+        }),
       ),
     );
+  }
+
+  IconData _getIconForSensor(String type) {
+    switch (type.toLowerCase()) {
+      case 'temperature':
+        return Icons.thermostat;
+      case 'humidity':
+        return Icons.opacity;
+      case 'mq2':
+        return Icons.warning_amber;
+      case 'flame sensor':
+        return Icons.local_fire_department;
+      default:
+        return Icons.sensors;
+    }
+  }
+
+  String _getLabelForSensor(String type) {
+    switch (type.toLowerCase()) {
+      case 'temperature':
+        return 'Temperature';
+      case 'humidity':
+        return 'Humidity';
+      case 'mq2':
+        return 'Gas Level';
+      case 'flame sensor':
+        return 'Flame Detection';
+      default:
+        return type[0].toUpperCase() + type.substring(1);
+    }
   }
 }
 
