@@ -30,8 +30,13 @@ class _LoginScreenState extends State<LoginScreen> {
       final result = await AuthService.login(email, password);
 
       if (result['success']) {
-        // You can store result['token'] in SharedPreferences for persistent auth
-        Navigator.pushReplacementNamed(context, '/home');
+        final role = result['user']['role']; // backend must return this
+
+        if (role == 'admin') {
+          Navigator.pushReplacementNamed(context, '/admin');
+        } else {
+          Navigator.pushReplacementNamed(context, '/home');
+        }
       } else {
         _showError(result['message']);
       }
@@ -41,6 +46,7 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _isLoading = false);
     }
   }
+
 
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(

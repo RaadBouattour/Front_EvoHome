@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
+import '../services/api_service.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 
 class LightDetailScreen extends StatefulWidget {
   const LightDetailScreen({super.key});
@@ -12,6 +14,11 @@ class _LightDetailScreenState extends State<LightDetailScreen> {
   bool isLightOn = false;
   double brightness = 70;
   double intensity = 70;
+  TimeOfDay fromTime = const TimeOfDay(hour: 0, minute: 0);
+  TimeOfDay toTime = const TimeOfDay(hour: 12, minute: 0);
+
+  String lightId = '';
+  String roomName = '';
 
   double imageHeight = 200;
   double imageTopOffset = -47;
@@ -31,10 +38,74 @@ class _LightDetailScreenState extends State<LightDetailScreen> {
   double labelLowRotationDeg = -77;
   double labelHighRotationDeg = -100;
 
-  TimeOfDay fromTime = const TimeOfDay(hour: 0, minute: 0);
-  TimeOfDay toTime = const TimeOfDay(hour: 12, minute: 0);
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
 
-  void _updateBrightness(Offset localPosition, Size size) {
+    if (args != null) {
+      setState(() {
+        isLightOn = args['state'] ?? false;
+        brightness = (args['brightness'] ?? 70).toDouble();
+        intensity = (args['intensity'] ?? 70).toDouble();
+        lightId = args['id'] ?? '';
+        roomName = args['room'] ?? '';
+
+        final schedule = args['schedule'];
+        if (schedule != null) {
+          try {
+            final fromParts = (schedule['from'] as String).split(':');
+            final toParts = (schedule['to'] as String).split(':');
+            if (fromParts.length == 2) {
+              fromTime = TimeOfDay(
+                hour: int.tryParse(fromParts[0]) ?? 0,
+                minute: int.tryParse(fromParts[1]) ?? 0,
+              );
+            }
+            if (toParts.length == 2) {
+              toTime = TimeOfDay(
+                hour: int.tryParse(toParts[0]) ?? 0,
+                minute: int.tryParse(toParts[1]) ?? 0,
+              );
+            }
+          } catch (_) {}
+        }
+      });
+
+      debugPrint("🔗 ID: $lightId");
+      debugPrint("🏠 Room: $roomName");
+      debugPrint("💡 State: $isLightOn | Brightness: $brightness | Intensity: $intensity");
+      debugPrint("⏱ Schedule: from ${fromTime.format(context)} to ${toTime.format(context)}");
+    }
+  }
+
+  Future<void> _toggleLight(bool value) async {
+    setState(() => isLightOn = value);
+    try {
+      await ApiService.toggleLight(room: roomName, status: value);
+      Fluttertoast.showToast(msg: "Light ${value ? 'ON' : 'OFF'}");
+    } catch (e) {
+      Fluttertoast.showToast(msg: "Error: $e");
+    }
+  }
+
+  Future<void> _updateSchedule() async {
+    try {
+      await ApiService.toggleLight(
+        room: roomName,
+        status: isLightOn,
+        schedule: {
+          "from": "${fromTime.hour.toString().padLeft(2, '0')}:${fromTime.minute.toString().padLeft(2, '0')}",
+          "to": "${toTime.hour.toString().padLeft(2, '0')}:${toTime.minute.toString().padLeft(2, '0')}"
+        },
+      );
+      Fluttertoast.showToast(msg: "Schedule updated");
+    } catch (e) {
+      Fluttertoast.showToast(msg: "Schedule error: $e");
+    }
+  }
+
+  void _updateBrightness(Offset localPosition, Size size) async {
     final center = Offset(size.width / 2, size.height);
     final dx = localPosition.dx - center.dx;
     final dy = localPosition.dy - center.dy;
@@ -42,9 +113,33 @@ class _LightDetailScreenState extends State<LightDetailScreen> {
     angle -= rotationAngleDeg * math.pi / 180;
     double percent = ((angle + math.pi) / math.pi).clamp(0.0, 1.0);
     double newBrightness = (percent * 100).clamp(0, 100);
+
     setState(() {
       brightness += (newBrightness - brightness) * 0.2;
     });
+
+    try {
+      await ApiService.toggleLight(
+        room: roomName,
+        status: isLightOn,
+        brightness: brightness.round(),
+      );
+    } catch (e) {
+      Fluttertoast.showToast(msg: "Brightness error: $e");
+    }
+  }
+
+  void _updateIntensity(double value) async {
+    setState(() => intensity = value);
+    try {
+      await ApiService.toggleLight(
+        room: roomName,
+        status: isLightOn,
+        intensity: intensity.round(),
+      );
+    } catch (e) {
+      Fluttertoast.showToast(msg: "Intensity error: $e");
+    }
   }
 
   @override
@@ -57,7 +152,6 @@ class _LightDetailScreenState extends State<LightDetailScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ✅ Lamp image that scrolls with content
               Stack(
                 children: [
                   Positioned(
@@ -89,7 +183,7 @@ class _LightDetailScreenState extends State<LightDetailScreen> {
                             Switch(
                               value: isLightOn,
                               activeColor: Colors.yellow[700],
-                              onChanged: (val) => setState(() => isLightOn = val),
+                              onChanged: _toggleLight,
                             ),
                           ],
                         ),
@@ -99,9 +193,7 @@ class _LightDetailScreenState extends State<LightDetailScreen> {
                   ),
                 ],
               ),
-
               const SizedBox(height: 40),
-
               SizedBox(
                 height: 350,
                 child: Stack(
@@ -144,23 +236,23 @@ class _LightDetailScreenState extends State<LightDetailScreen> {
                   ],
                 ),
               ),
-
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Schedule',
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    const Text('Schedule', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 10),
                     Row(
                       children: [
                         Text('From ', style: TextStyle(fontSize: 16, color: Colors.grey[600])),
                         TextButton(
                           onPressed: () async {
-                            TimeOfDay? picked =
-                            await showTimePicker(context: context, initialTime: fromTime);
-                            if (picked != null) setState(() => fromTime = picked);
+                            TimeOfDay? picked = await showTimePicker(context: context, initialTime: fromTime);
+                            if (picked != null) {
+                              setState(() => fromTime = picked);
+                              await _updateSchedule();
+                            }
                           },
                           child: Row(
                             children: [
@@ -174,9 +266,11 @@ class _LightDetailScreenState extends State<LightDetailScreen> {
                         Text('To ', style: TextStyle(fontSize: 16, color: Colors.grey[600])),
                         TextButton(
                           onPressed: () async {
-                            TimeOfDay? picked =
-                            await showTimePicker(context: context, initialTime: toTime);
-                            if (picked != null) setState(() => toTime = picked);
+                            TimeOfDay? picked = await showTimePicker(context: context, initialTime: toTime);
+                            if (picked != null) {
+                              setState(() => toTime = picked);
+                              await _updateSchedule();
+                            }
                           },
                           child: Row(
                             children: [
@@ -191,7 +285,6 @@ class _LightDetailScreenState extends State<LightDetailScreen> {
                   ],
                 ),
               ),
-
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Column(
@@ -201,19 +294,9 @@ class _LightDetailScreenState extends State<LightDetailScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text('Intensity',
-                          style: TextStyle(
-                            fontSize: 20.17,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF333333),
-                          ),
-                        ),
+                            style: TextStyle(fontSize: 20.17, fontWeight: FontWeight.w600, color: Color(0xFF333333))),
                         Text('${intensity.round()}%',
-                          style: const TextStyle(
-                            fontSize: 17.48,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF333333),
-                          ),
-                        ),
+                            style: const TextStyle(fontSize: 17.48, fontWeight: FontWeight.w600, color: Color(0xFF333333))),
                       ],
                     ),
                     SliderTheme(
@@ -227,7 +310,7 @@ class _LightDetailScreenState extends State<LightDetailScreen> {
                         min: 0,
                         max: 100,
                         divisions: 10,
-                        onChanged: (value) => setState(() => intensity = value),
+                        onChanged: _updateIntensity,
                       ),
                     ),
                     Row(

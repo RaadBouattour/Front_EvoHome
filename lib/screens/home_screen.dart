@@ -25,7 +25,6 @@ class _HomeScreenState extends State<HomeScreen> {
     'bedroom': ['DHT11'],
   };
 
-
   @override
   void initState() {
     super.initState();
@@ -39,40 +38,54 @@ class _HomeScreenState extends State<HomeScreen> {
       if (response.statusCode == 200) {
         final Map<String, dynamic> jsonData = json.decode(response.body);
         final rooms = jsonData.keys.toList();
-        final mappedDevices = {
-          for (var room in rooms)
-            room: (jsonData[room] as List)
-                .map((e) => e as Map<String, dynamic>)
-                .toList()
-        };
+
+        final Map<String, List<Map<String, dynamic>>> mappedDevices = {};
+        final Map<String, bool> states = {};
+
+        print('✅ Rooms found: $rooms');
+
+        for (var room in rooms) {
+          final List<dynamic> deviceList = jsonData[room];
+          print('📦 Devices in room "$room":');
+
+          mappedDevices[room] = deviceList.map((e) {
+            final device = e as Map<String, dynamic>;
+            final id = device['id'].toString(); // ✅ convert to string
+            final type = device['type'];
+            final status = device['status'] ?? device['state'] ?? false;
+
+            print('🔹 $type → ID: $id → Status: $status');
+            states[id] = status;
+            return device..['id'] = id;
+          }).toList();
+        }
 
         setState(() {
           roomNames = rooms;
           selectedRoom = rooms.isNotEmpty ? rooms.first : '';
           devicesByRoom = mappedDevices;
+          deviceStates = states;
         });
+
+        print('✅ deviceStates map: $deviceStates');
 
         _fetchEnvironmentData();
       } else {
         throw Exception('Failed to load device data');
       }
     } catch (e) {
-      print('Error fetching device data: $e');
+      print('❌ Error fetching device data: $e');
     }
   }
 
   Future<void> _fetchEnvironmentData() async {
     try {
       print('🔄 Fetching sensor data for $selectedRoom');
-
       final sensorList = await ApiService.getSensorData();
       print('✅ Sensor List Fetched: ${sensorList.length} items');
 
       final allowed = roomSensors[selectedRoom.toLowerCase()] ?? [];
-
-      final allowedNormalized = allowed
-          .map((e) => e.toLowerCase().replaceAll(' ', ''))
-          .toList();
+      final allowedNormalized = allowed.map((e) => e.toLowerCase().replaceAll(' ', '')).toList();
       print('📌 Allowed sensors for $selectedRoom → $allowedNormalized');
 
       final Map<String, dynamic> result = {};
@@ -115,14 +128,13 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-
   Future<void> _toggleDevice(String type, String room, bool newState) async {
     String url;
     Map<String, dynamic> body;
 
     if (type.toLowerCase() == 'door') {
       url = 'http://localhost:5000/api/doors/toggle';
-      body = {'room': room, 'status': newState ? 'open' : 'close'};
+      body = {'room': room, 'status': newState ? 'true' : 'false'};
     } else if (type.toLowerCase() == 'light') {
       url = 'http://localhost:5000/api/lights/toggle';
       body = {'room': room, 'status': newState};
@@ -149,35 +161,43 @@ class _HomeScreenState extends State<HomeScreen> {
     required String room,
     required bool state,
   }) {
+    final device = devicesByRoom[room]?.firstWhere((d) => d['id'].toString() == id, orElse: () => {});
+    if (device == null) return;
+
     switch (type.toLowerCase()) {
       case 'light':
         Navigator.pushNamed(context, '/light-detail', arguments: {
           'id': id,
           'room': room,
           'state': state,
+          'brightness': device['brightness'] ?? 70,
+          'intensity': device['intensity'] ?? 70,
+          'schedule': device['schedule'],
         });
         break;
-      case 'door':
-        Navigator.pushNamed(context, '/door-detail', arguments: {
-          'id': id,
-          'room': room,
-          'state': state,
-        });
-        break;
-      case 'ventilation':
       case 'fan':
+      case 'ventilation':
         Navigator.pushNamed(context, '/fan-detail', arguments: {
           'id': id,
           'room': room,
           'state': state,
+          'speed': device['speed'] ?? 0,
+          'schedule': device['schedule'] ?? {'from': '00:00', 'to': '12:00', 'days': []},
         });
         break;
-      default:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("No detail screen available for this device.")),
-        );
+      case 'pump':
+      case 'watering':
+        Navigator.pushNamed(context, '/pump-detail', arguments: {
+          'id': id,
+          'room': room,
+          'state': state,
+          'speed': device['speed'] ?? 1,
+          'schedule': device['schedule'] ?? {'from': '00:00', 'to': '12:00', 'days': []},
+        });
+        break;
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -246,13 +266,13 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         itemBuilder: (context, index) {
           final device = devices[index];
-          final deviceId = device['id'];
+          final deviceId = device['id'].toString(); // ✅ ensure string key
           final deviceType = device['type'];
 
           return DeviceCard(
             icon: _getIconFromType(deviceType),
-            title: deviceType,
-            subtitle: 'ID: $deviceId',
+            name: device['name'] ?? deviceType,
+            model: device['model'] ?? '',
             initialState: deviceStates[deviceId] ?? false,
             onToggle: (val) async {
               setState(() => deviceStates[deviceId] = val);
@@ -289,7 +309,10 @@ class _HomeScreenState extends State<HomeScreen> {
         return Icons.sensor_door;
       case 'ventilation':
       case 'fan':
-        return Icons.toys;
+        return Icons.air;
+      case 'pump':
+      case 'watering':
+        return Icons.water_drop;
       default:
         return Icons.devices_other;
     }

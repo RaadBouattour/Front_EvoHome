@@ -25,6 +25,53 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> toggleLight({
+    required String room,
+    required bool status,
+    int? brightness,
+    int? intensity,
+    Map<String, String>? schedule,
+  }) async {
+    final url = Uri.parse('$baseUrl/lights/toggle');
+
+    final Map<String, dynamic> body = {
+      'room': room,
+      'status': status,
+      if (brightness != null) 'brightness': brightness,
+      if (intensity != null) 'intensity': intensity,
+      if (schedule != null) 'schedule': schedule,
+    };
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(body),
+      );
+
+      if (response.statusCode == 200) {
+        try {
+          return jsonDecode(response.body);
+        } catch (e) {
+          throw Exception("Invalid JSON response from server");
+        }
+      } else {
+        // Try parsing error message from backend
+        try {
+          final error = jsonDecode(response.body);
+          throw Exception("Server error: ${error['error'] ?? 'Unknown error'}");
+        } catch (_) {
+          // Fallback for HTML or non-JSON errors
+          throw Exception("Server returned error ${response.statusCode}: ${response.reasonPhrase}");
+        }
+      }
+    } catch (e) {
+      throw Exception('Failed to toggle light: $e');
+    }
+  }
+
   // Toggle device state
   static Future<void> toggleDevice(Device device) async {
     final endpoint = getEndpointForType(device.type);
@@ -75,6 +122,75 @@ class ApiService {
     }
   }
 
+  static Future<void> controlPump({
+    required String room,
+    required bool status,
+    int? speed,
+    Map<String, String>? schedule,
+  }) async {
+    final url = Uri.parse('$baseUrl/pump/control');
+
+    final body = {
+      'room': room,
+      'status': status,
+    };
+
+    if (speed != null) body['speed'] = speed;
+    if (schedule != null) body['schedule'] = schedule;
+
+    final response = await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(body),
+    );
+
+    if (response.statusCode != 200) {
+      try {
+        final error = jsonDecode(response.body);
+        throw Exception('Pump error: ${error['error'] ?? 'Unknown error'}');
+      } catch (_) {
+        throw Exception('Failed to control pump. Status: ${response.statusCode}');
+      }
+    }
+  }
+
+
+  static Future<void> controlVentilation({
+    required String room,
+    required bool status,
+    int? speed,
+    Map<String, dynamic>? schedule,
+  }) async {
+    final url = Uri.parse('$baseUrl/ventilations/control');
+
+    final Map<String, dynamic> body = {
+      'room': room,
+      'status': status,
+      if (speed != null) 'speed': speed,
+      if (schedule != null) 'schedule': schedule,
+    };
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(body),
+      );
+
+      if (response.statusCode == 200) return;
+
+      // Try to parse JSON error from backend
+      try {
+        final error = jsonDecode(response.body);
+        throw Exception('Ventilation error: ${error['error'] ?? 'Unknown error'}');
+      } catch (_) {
+        throw Exception('Ventilation failed with status ${response.statusCode}');
+      }
+
+    } catch (e) {
+      throw Exception('Failed to control ventilation: $e');
+    }
+  }
 
 
   static Future<List<Map<String, dynamic>>> getSensorData() async {
