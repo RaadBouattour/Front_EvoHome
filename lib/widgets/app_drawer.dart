@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
-import '../screens/HelpSupportScreen.dart';
 import '../screens/profile_screen.dart';
 
 class AppDrawer extends StatefulWidget {
@@ -35,21 +34,40 @@ class _AppDrawerState extends State<AppDrawer> {
   @override
   Widget build(BuildContext context) {
     return Drawer(
-      backgroundColor: const Color(0xFFF9F9F9),
+      backgroundColor: Colors.white,
       child: SafeArea(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
-              color: Colors.white,
+            // Profile section with edit icon
+            Padding(
+              padding: const EdgeInsets.all(16),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  const CircleAvatar(
-                    radius: 30,
-                    backgroundImage: AssetImage('assets/images/profile.jpg'),
+                  Stack(
+                    children: [
+                      Container(
+                        width: 60,
+                        height: 60,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFEDE5FF), // violet clair
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.person, size: 30, color: Colors.black54),
+                      ),
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: Container(
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.black,
+                          ),
+                          padding: const EdgeInsets.all(3),
+                          child: const Icon(Icons.edit, size: 14, color: Colors.white),
+                        ),
+                      )
+                    ],
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -59,64 +77,66 @@ class _AppDrawerState extends State<AppDrawer> {
                         Text(
                           firstname.isNotEmpty ? firstname : 'Loading...',
                           style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           email.isNotEmpty ? email : '',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Colors.grey,
-                          ),
+                          style: TextStyle(color: Colors.grey[600], fontSize: 12),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
                   ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  )
                 ],
               ),
             ),
 
             const SizedBox(height: 12),
-            const Divider(color: Colors.grey, thickness: 0.3),
 
             _buildDrawerItem(Icons.home_rounded, 'Home', () {
               Navigator.pop(context);
             }),
+
             _buildDrawerItem(Icons.person_outline, 'Profile', () {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const ProfileScreen()),
               );
             }),
-            _buildDrawerItem(Icons.help_outline, 'Help & Support', () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const HelpSupportScreen()),
-              );
-            }),
 
             const Spacer(),
-            const Divider(color: Colors.grey),
 
+            // Log out button at bottom
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.logout, color: Colors.redAccent),
-                title: const Text(
-                  'Log Out',
-                  style: TextStyle(fontSize: 16, color: Colors.redAccent),
+              padding: const EdgeInsets.all(16.0),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.logout, color: Colors.white),
+                  label: const Text(
+                    'Log Out',
+                    style: TextStyle(fontSize: 16, color: Colors.white),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.black,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                  ),
+                  onPressed: () {
+                    Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+                  },
                 ),
-                onTap: () {
-                  Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
-                },
               ),
             ),
-            const SizedBox(height: 16),
           ],
         ),
       ),
@@ -124,17 +144,14 @@ class _AppDrawerState extends State<AppDrawer> {
   }
 
   Widget _buildDrawerItem(IconData icon, String title, VoidCallback onTap) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: Icon(icon, color: Colors.black54),
-        title: Text(
-          title,
-          style: const TextStyle(fontSize: 16, color: Colors.black),
-        ),
-        onTap: onTap,
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+      leading: Icon(icon, color: Colors.black),
+      title: Text(
+        title,
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
       ),
+      onTap: onTap,
     );
   }
 }

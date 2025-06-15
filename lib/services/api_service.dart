@@ -1,11 +1,27 @@
+import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/cupertino.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:http/http.dart' as http;
+import 'package:socket_io_client/socket_io_client.dart' as IO;
 import '../models/device.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://localhost:5000/api'; // Replace with your IP if needed
+  static const String baseUrl = 'http://192.168.228.166:5000/api';
+  static late IO.Socket socket;
 
-  // Fetch all devices grouped by room
+  static void initWebSocket() {
+    socket = IO.io(
+      'http://192.168.228.166:5000',
+      IO.OptionBuilder().setTransports(['websocket']).disableAutoConnect().build(),
+    );
+
+    socket.connect();
+
+    socket.onConnect((_) => print('✅ WebSocket connected to device control service'));
+    socket.onDisconnect((_) => print('❌ Disconnected from device control service'));
+  }
+
   static Future<Map<String, List<Device>>> fetchDevicesGroupedByRoom() async {
     final response = await http.get(Uri.parse('$baseUrl/devices/grouped-by-room'));
 
@@ -72,7 +88,7 @@ class ApiService {
     }
   }
 
-  // Toggle device state
+
   static Future<void> toggleDevice(Device device) async {
     final endpoint = getEndpointForType(device.type);
     if (endpoint == null) throw Exception('Unknown device type: ${device.type}');
@@ -88,7 +104,49 @@ class ApiService {
     }
   }
 
-  // Get the correct endpoint path based on device type
+
+  static Future<bool?> getDeviceStatusById(String deviceId) async {
+    final url = Uri.parse('$baseUrl/devices/grouped-by-room');
+
+    try {
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+
+        // Flatten all room arrays into a single list
+        for (final roomDevices in data.values) {
+          if (roomDevices is List) {
+            for (final device in roomDevices) {
+              if (device['id'] == deviceId) {
+                final status = device['status'];
+                if (status is bool) {
+                  return status;
+                }
+              }
+            }
+          }
+        }
+        return null; // ID not found
+      } else {
+        throw Exception('Failed to load devices');
+      }
+    } catch (e) {
+      print('❌ Error in getDeviceStatusById: $e');
+      rethrow;
+    }
+  }
+
+  static Future<Map<String, dynamic>> fetchAllDevicesGroupedByRoom() async {
+    final response = await http.get(Uri.parse('http://192.168.228.166:5000/api/devices/grouped-by-room'));
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to fetch device groups');
+    }
+  }
+
+
   static String? getEndpointForType(String type) {
     switch (type.toLowerCase()) {
       case 'light':
@@ -102,7 +160,6 @@ class ApiService {
         return null;
     }
   }
-
 
   Future<List<dynamic>> fetchTips() async {
     final String url = 'http://127.0.0.1:5000/get-tips';
@@ -129,30 +186,29 @@ class ApiService {
     Map<String, String>? schedule,
   }) async {
     final url = Uri.parse('$baseUrl/pump/control');
-
     final body = {
       'room': room,
       'status': status,
+      if (speed != null) 'speed': speed,
+      if (schedule != null) 'schedule': schedule,
     };
 
-    if (speed != null) body['speed'] = speed;
-    if (schedule != null) body['schedule'] = schedule;
+    debugPrint("📤 Sending controlPump request to $url");
+    debugPrint("📦 Request body: ${body.toString()}");
 
     final response = await http.post(
       url,
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(body),
+      body: json.encode(body),
     );
 
+    debugPrint("📥 Response (${response.statusCode}): ${response.body}");
+
     if (response.statusCode != 200) {
-      try {
-        final error = jsonDecode(response.body);
-        throw Exception('Pump error: ${error['error'] ?? 'Unknown error'}');
-      } catch (_) {
-        throw Exception('Failed to control pump. Status: ${response.statusCode}');
-      }
+      throw Exception('❌Failed to control pump');
     }
   }
+
 
 
   static Future<void> controlVentilation({
@@ -163,38 +219,43 @@ class ApiService {
   }) async {
     final url = Uri.parse('$baseUrl/ventilations/control');
 
-    final Map<String, dynamic> body = {
-      'room': room,
-      'status': status,
-      if (speed != null) 'speed': speed,
-      if (schedule != null) 'schedule': schedule,
+    final payload = {
+      "room": room,
+      "status": status,
+      if (speed != null) "speed": speed,
+      if (schedule != null) "schedule": schedule,
     };
+
+    // 🐞 DEBUG: Show request
+    print('📤 Sending POST to: $url');
+    print('📦 Payload: ${jsonEncode(payload)}');
 
     try {
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(body),
+        body: jsonEncode(payload),
       );
 
-      if (response.statusCode == 200) return;
+      // ✅ DEBUG: Show response
+      print('✅ Response Code: ${response.statusCode}');
+      print('📨 Response Body: ${response.body}');
 
-      // Try to parse JSON error from backend
-      try {
-        final error = jsonDecode(response.body);
-        throw Exception('Ventilation error: ${error['error'] ?? 'Unknown error'}');
-      } catch (_) {
-        throw Exception('Ventilation failed with status ${response.statusCode}');
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        Fluttertoast.showToast(msg: "Ventilation updated ✅");
+      } else {
+        Fluttertoast.showToast(msg: "Failed: ${response.statusCode}");
       }
-
     } catch (e) {
-      throw Exception('Failed to control ventilation: $e');
+      print("❌ Error sending ventilation control: $e");
+      Fluttertoast.showToast(msg: "Error: $e");
     }
   }
 
 
-  static Future<List<Map<String, dynamic>>> getSensorData() async {
-    final url = Uri.parse('http://localhost:3000/api/sensor/data/esp32-001');
+
+  static Future<List<Map<String, dynamic>>> fetchSensorData() async {
+    final url = Uri.parse('http://192.168.228.166:3000/api/sensor/data/esp32-001');
 
     try {
       final response = await http.get(url);
@@ -205,25 +266,74 @@ class ApiService {
         final List<Map<String, dynamic>> sensorList =
         List<Map<String, dynamic>>.from(jsonData['data']);
 
-        // ✅ DEBUG: Print the raw response
-        print('✅ Raw JSON Response: ${response.body}');
-
-        // ✅ DEBUG: Print parsed sensor list
+        print('Raw JSON Response: ${response.body}');
         for (var sensor in sensorList) {
-          print('📡 SensorType: ${sensor['sensorType']} → Data: ${sensor['data']}');
+          print('SensorType: ${sensor['sensorType']} → Data: ${sensor['data']}');
         }
 
         return sensorList;
       } else {
-        print('❌ Request failed with status: ${response.statusCode}');
+        print('Request failed with status: ${response.statusCode}');
         throw Exception('Failed to load sensor data');
       }
     } catch (e) {
-      print('❌ Error during sensor data fetch: $e');
+      print('Error during sensor data fetch: $e');
       rethrow;
     }
   }
 
+  static Future<Map<String, dynamic>?> fetchSchedule({
+    required String deviceType,
+    required String deviceId,
+  }) async {
+    final url = Uri.parse('$baseUrl/schedule/$deviceType/$deviceId');
+
+    print("📡 [GET] Fetching schedule from: $url");
+
+    try {
+      final response = await http.get(url);
+
+      print("📥 Status: ${response.statusCode}");
+      print("📥 Body: ${response.body}");
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+
+        if (data['schedule'] != null) {
+          print("✅ Parsed schedule: ${data['schedule']}");
+          return Map<String, dynamic>.from(data['schedule']);
+        } else {
+          print("ℹ️ No schedule found in response.");
+          return null;
+        }
+      } else {
+        print("❌ Failed to fetch schedule: HTTP ${response.statusCode}");
+        return null;
+      }
+    } catch (e) {
+      print("❌ Exception during schedule fetch: $e");
+      return null;
+    }
+  }
+
+
+
+
+  static Future<bool> deleteScheduleByDevice(String deviceType, String deviceId) async {
+    final response = await http.delete(
+      Uri.parse('$baseUrl/schedule/$deviceType/$deviceId'),
+    );
+    return response.statusCode == 200;
+  }
+
+  static Future<bool?> getDeviceState(String deviceType, String deviceId) async {
+    final response = await http.get(Uri.parse('$baseUrl/device_state/$deviceType/$deviceId'));
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['status'] as bool?;
+    }
+    throw Exception("Failed to get device state");
+  }
 
 
 }

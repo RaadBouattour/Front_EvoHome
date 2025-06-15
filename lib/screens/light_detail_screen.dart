@@ -13,12 +13,13 @@ class LightDetailScreen extends StatefulWidget {
 class _LightDetailScreenState extends State<LightDetailScreen> {
   bool isLightOn = false;
   double brightness = 70;
-  double intensity = 70;
   TimeOfDay fromTime = const TimeOfDay(hour: 0, minute: 0);
   TimeOfDay toTime = const TimeOfDay(hour: 12, minute: 0);
 
   String lightId = '';
   String roomName = '';
+
+  bool _isScheduled = false;
 
   double imageHeight = 200;
   double imageTopOffset = -47;
@@ -47,35 +48,43 @@ class _LightDetailScreenState extends State<LightDetailScreen> {
       setState(() {
         isLightOn = args['state'] ?? false;
         brightness = (args['brightness'] ?? 70).toDouble();
-        intensity = (args['intensity'] ?? 70).toDouble();
         lightId = args['id'] ?? '';
         roomName = args['room'] ?? '';
-
-        final schedule = args['schedule'];
-        if (schedule != null) {
-          try {
-            final fromParts = (schedule['from'] as String).split(':');
-            final toParts = (schedule['to'] as String).split(':');
-            if (fromParts.length == 2) {
-              fromTime = TimeOfDay(
-                hour: int.tryParse(fromParts[0]) ?? 0,
-                minute: int.tryParse(fromParts[1]) ?? 0,
-              );
-            }
-            if (toParts.length == 2) {
-              toTime = TimeOfDay(
-                hour: int.tryParse(toParts[0]) ?? 0,
-                minute: int.tryParse(toParts[1]) ?? 0,
-              );
-            }
-          } catch (_) {}
-        }
       });
+    }
 
-      debugPrint("🔗 ID: $lightId");
-      debugPrint("🏠 Room: $roomName");
-      debugPrint("💡 State: $isLightOn | Brightness: $brightness | Intensity: $intensity");
-      debugPrint("⏱ Schedule: from ${fromTime.format(context)} to ${toTime.format(context)}");
+    if (lightId.isNotEmpty) {
+      _fetchSchedule();          // ⏰ fetch schedule
+      _fetchCurrentLightState(); // ✅ sync light toggle
+    }
+
+  }
+
+  Future<void> _fetchSchedule() async {
+    try {
+      final schedule = await ApiService.fetchSchedule(
+        deviceType: 'light',
+        deviceId: lightId,
+      );
+
+      if (schedule != null && schedule['from'] != null && schedule['to'] != null) {
+        final fromParts = (schedule['from'] as String).split(':');
+        final toParts = (schedule['to'] as String).split(':');
+
+        if (fromParts.length == 2 && toParts.length == 2) {
+          if (!mounted) return;
+          setState(() {
+            fromTime = TimeOfDay(hour: int.parse(fromParts[0]), minute: int.parse(fromParts[1]));
+            toTime = TimeOfDay(hour: int.parse(toParts[0]), minute: int.parse(toParts[1]));
+            _isScheduled = true;
+          });
+        }
+      } else {
+        if (!mounted) return;
+        setState(() => _isScheduled = false);
+      }
+    } catch (e) {
+      debugPrint('❌ Failed to fetch schedule: $e');
     }
   }
 
@@ -83,27 +92,104 @@ class _LightDetailScreenState extends State<LightDetailScreen> {
     setState(() => isLightOn = value);
     try {
       await ApiService.toggleLight(room: roomName, status: value);
-      Fluttertoast.showToast(msg: "Light ${value ? 'ON' : 'OFF'}");
+      Fluttertoast.showToast(msg: "Light \${value ? 'ON' : 'OFF'}");
     } catch (e) {
       Fluttertoast.showToast(msg: "Error: $e");
     }
   }
 
   Future<void> _updateSchedule() async {
+    if (isLightOn) {
+      Fluttertoast.showToast(msg: "Please turn off the light to schedule it ❌");
+      return;
+    }
+
+    final now = TimeOfDay.now();
+    final nowMinutes = now.hour * 60 + now.minute;
+    final fromMinutes = fromTime.hour * 60 + fromTime.minute;
+    final toMinutes = toTime.hour * 60 + toTime.minute;
+
+    if (fromMinutes < nowMinutes || toMinutes < nowMinutes) {
+      Fluttertoast.showToast(
+        msg: "From and To times must be in the future ⏳",
+        backgroundColor: Colors.red,
+        textColor: Colors.white,
+      );
+      return;
+    }
+
+    final from = '${fromTime.hour.toString().padLeft(2, '0')}:${fromTime.minute.toString().padLeft(2, '0')}';
+    final to = '${toTime.hour.toString().padLeft(2, '0')}:${toTime.minute.toString().padLeft(2, '0')}';
+
     try {
       await ApiService.toggleLight(
         room: roomName,
-        status: isLightOn,
-        schedule: {
-          "from": "${fromTime.hour.toString().padLeft(2, '0')}:${fromTime.minute.toString().padLeft(2, '0')}",
-          "to": "${toTime.hour.toString().padLeft(2, '0')}:${toTime.minute.toString().padLeft(2, '0')}"
-        },
+        status: false,
+        schedule: {"from": from, "to": to},
       );
-      Fluttertoast.showToast(msg: "Schedule updated");
+      Fluttertoast.showToast(msg: "Schedule updated ✅");
+      setState(() => _isScheduled = true);
     } catch (e) {
       Fluttertoast.showToast(msg: "Schedule error: $e");
     }
   }
+
+  Future<void> _fetchCurrentLightState() async {
+    try {
+      final status = await ApiService.getDeviceStatusById(lightId);
+      debugPrint('🔦 Light $lightId fetched status: $status');
+
+      if (!mounted) return;
+      setState(() {
+        isLightOn = status == true;
+      });
+    } catch (e) {
+      debugPrint('❌ Failed to fetch light status: $e');
+    }
+  }
+
+
+  Future<void> _deleteSchedule() async {
+    final success = await ApiService.deleteScheduleByDevice("light", lightId);
+    if (success) {
+      setState(() {
+        fromTime = const TimeOfDay(hour: 0, minute: 0);
+        toTime = const TimeOfDay(hour: 0, minute: 0);
+        _isScheduled = false;
+      });
+    }
+  }
+
+  Future<void> _pickTime(bool isFrom) async {
+    final now = TimeOfDay.now();
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: isFrom ? fromTime : toTime,
+    );
+
+    if (picked != null) {
+      final pickedMinutes = picked.hour * 60 + picked.minute;
+      final nowMinutes = now.hour * 60 + now.minute;
+
+      if (pickedMinutes < nowMinutes) {
+        Fluttertoast.showToast(
+          msg: "Time cannot be earlier than now ⏰",
+          backgroundColor: Colors.red,
+          textColor: Colors.white,
+        );
+        return;
+      }
+
+      setState(() {
+        if (isFrom) {
+          fromTime = picked;
+        } else {
+          toTime = picked;
+        }
+      });
+    }
+  }
+
 
   void _updateBrightness(Offset localPosition, Size size) async {
     final center = Offset(size.width / 2, size.height);
@@ -126,19 +212,6 @@ class _LightDetailScreenState extends State<LightDetailScreen> {
       );
     } catch (e) {
       Fluttertoast.showToast(msg: "Brightness error: $e");
-    }
-  }
-
-  void _updateIntensity(double value) async {
-    setState(() => intensity = value);
-    try {
-      await ApiService.toggleLight(
-        room: roomName,
-        status: isLightOn,
-        intensity: intensity.round(),
-      );
-    } catch (e) {
-      Fluttertoast.showToast(msg: "Intensity error: $e");
     }
   }
 
@@ -175,10 +248,7 @@ class _LightDetailScreenState extends State<LightDetailScreen> {
                               onPressed: () => Navigator.pop(context),
                             ),
                             const SizedBox(height: 10),
-                            const Text(
-                              'Smart Light',
-                              style: TextStyle(fontSize: 20, color: Colors.black, fontWeight: FontWeight.bold),
-                            ),
+                            const Text('Smart Light', style: TextStyle(fontSize: 20, color: Colors.black, fontWeight: FontWeight.bold)),
                             const SizedBox(height: 10),
                             Switch(
                               value: isLightOn,
@@ -227,8 +297,7 @@ class _LightDetailScreenState extends State<LightDetailScreen> {
                       left: brightnessTextLeft,
                       child: Column(
                         children: [
-                          Text('${brightness.round()}%',
-                              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
+                          Text('${brightness.round()}%', style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
                           const Text('Brightness', style: TextStyle(fontSize: 16)),
                         ],
                       ),
@@ -236,91 +305,60 @@ class _LightDetailScreenState extends State<LightDetailScreen> {
                   ],
                 ),
               ),
+              const SizedBox(height: 30),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text('Schedule', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Text('From ', style: TextStyle(fontSize: 16, color: Colors.grey[600])),
-                        TextButton(
-                          onPressed: () async {
-                            TimeOfDay? picked = await showTimePicker(context: context, initialTime: fromTime);
-                            if (picked != null) {
-                              setState(() => fromTime = picked);
-                              await _updateSchedule();
-                            }
-                          },
-                          child: Row(
-                            children: [
-                              Text(fromTime.format(context),
-                                  style: const TextStyle(color: Colors.black, fontSize: 16)),
-                              const Icon(Icons.arrow_drop_down),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 20),
-                        Text('To ', style: TextStyle(fontSize: 16, color: Colors.grey[600])),
-                        TextButton(
-                          onPressed: () async {
-                            TimeOfDay? picked = await showTimePicker(context: context, initialTime: toTime);
-                            if (picked != null) {
-                              setState(() => toTime = picked);
-                              await _updateSchedule();
-                            }
-                          },
-                          child: Row(
-                            children: [
-                              Text(toTime.format(context),
-                                  style: const TextStyle(color: Colors.black, fontSize: 16)),
-                              const Icon(Icons.arrow_drop_down),
-                            ],
-                          ),
-                        ),
-                      ],
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: _deleteSchedule,
+                      tooltip: 'Delete schedule',
                     ),
                   ],
                 ),
               ),
+              const SizedBox(height: 10),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('Intensity',
-                            style: TextStyle(fontSize: 20.17, fontWeight: FontWeight.w600, color: Color(0xFF333333))),
-                        Text('${intensity.round()}%',
-                            style: const TextStyle(fontSize: 17.48, fontWeight: FontWeight.w600, color: Color(0xFF333333))),
-                      ],
-                    ),
-                    SliderTheme(
-                      data: SliderTheme.of(context).copyWith(
-                        thumbColor: Colors.yellow,
-                        activeTrackColor: Colors.black,
-                        inactiveTrackColor: Colors.black12,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: _isScheduled ? Colors.yellow.withOpacity(0.1) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _isScheduled ? Colors.yellow[800]! : Colors.grey.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      Text('From ', style: TextStyle(fontSize: 16, color: Colors.grey[600])),
+                      TextButton(
+                        onPressed: () => _pickTime(true),
+                        child: Row(
+                          children: [
+                            Text(fromTime.format(context), style: const TextStyle(fontSize: 16)),
+                            const Icon(Icons.arrow_drop_down),
+                          ],
+                        ),
                       ),
-                      child: Slider(
-                        value: intensity,
-                        min: 0,
-                        max: 100,
-                        divisions: 10,
-                        onChanged: _updateIntensity,
+                      const SizedBox(width: 20),
+                      Text('To ', style: TextStyle(fontSize: 16, color: Colors.grey[600])),
+                      TextButton(
+                        onPressed: () => _pickTime(false),
+                        child: Row(
+                          children: [
+                            Text(toTime.format(context), style: const TextStyle(fontSize: 16)),
+                            const Icon(Icons.arrow_drop_down),
+                          ],
+                        ),
                       ),
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: const [
-                        Text('off', style: TextStyle(color: Color(0xFF9CABC2))),
-                        Text('100%', style: TextStyle(color: Color(0xFF9CABC2))),
-                      ],
-                    ),
-                  ],
+                      IconButton(
+                        icon: Icon(Icons.check, color: _isScheduled ? Colors.green : Colors.grey),
+                        onPressed: _updateSchedule,
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 50),

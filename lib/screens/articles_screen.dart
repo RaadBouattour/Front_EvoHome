@@ -26,7 +26,7 @@ class ArticlesScreen extends StatelessWidget {
               padding: const EdgeInsets.all(20),
               children: [
                 const Text(
-                  'Discover Articles',
+                  'Discover Les Conseilles',
                   style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),

@@ -1,7 +1,5 @@
 import 'package:evo_home_app/screens/DeviceDetailScreen.dart';
-import 'package:evo_home_app/screens/admin_dashboard.dart';
 import 'package:evo_home_app/screens/articles_screen.dart';
-import 'package:evo_home_app/screens/create_home_screen.dart';
 import 'package:evo_home_app/screens/door_detail_screen.dart';
 import 'package:evo_home_app/screens/fan_detail_screen.dart';
 import 'package:evo_home_app/screens/forgot_password_screen.dart';
@@ -9,6 +7,7 @@ import 'package:evo_home_app/screens/garden_watering_screen.dart';
 import 'package:evo_home_app/screens/home_screen.dart';
 import 'package:evo_home_app/screens/light_detail_screen.dart';
 import 'package:evo_home_app/screens/login_screen.dart';
+import 'package:evo_home_app/screens/notifications_screen.dart';
 import 'package:evo_home_app/screens/reset_password_screen.dart';
 import 'package:evo_home_app/screens/signup_screen.dart';
 import 'package:evo_home_app/screens/stream_screen.dart';
@@ -46,8 +45,7 @@ class EvoHomeApp extends StatelessWidget {
         '/door-detail': (_) => const DoorDetailScreen(),
         '/pump-detail': (_) => const GardenWateringScreen(),
         '/fan-detail': (_) => const FanDetailScreen(),
-        '/admin': (context) => const AdminDashboard(),
-        '/create-home': (context) => const CreateHomeScreen(),
+        '/notifications': (context) => const NotificationsScreen(),
       },
     );
   }
@@ -116,7 +114,9 @@ class _MainScaffoldState extends State<MainScaffold> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.notifications),
-                    onPressed: () {},
+                    onPressed: () {
+                      Navigator.pushNamed(context, '/notifications');
+                    },
                   ),
                 ],
               ),

@@ -1,16 +1,23 @@
 import 'package:flutter/material.dart';
 
-class StreamScreen extends StatelessWidget {
+class StreamScreen extends StatefulWidget {
   const StreamScreen({super.key});
 
-  final String streamUrl = 'http://192.168.1.100:81/stream'; // Replace with your actual camera stream URL
+  @override
+  State<StreamScreen> createState() => _StreamScreenState();
+}
+
+class _StreamScreenState extends State<StreamScreen> {
+  final String streamUrl = 'http://192.168.40.166:5000'; // your stream URL
+  bool streamLoaded = false;
+  bool hasError = false;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6FA),
       body: SafeArea(
-        child: SingleChildScrollView( // 🛠 Prevent overflow
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -27,9 +34,9 @@ class StreamScreen extends StatelessWidget {
               const SizedBox(height: 24),
               _buildLiveCameraBox(),
               const SizedBox(height: 20),
-              _buildControlsRow(),
+              _buildFullScreenButton(),
               const SizedBox(height: 30),
-              _buildStatusInfo(),
+              _buildDynamicStatusInfo(),
             ],
           ),
         ),
@@ -53,10 +60,28 @@ class StreamScreen extends StatelessWidget {
                 streamUrl,
                 fit: BoxFit.cover,
                 loadingBuilder: (context, child, progress) {
-                  if (progress == null) return child;
+                  if (progress == null) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (!streamLoaded) {
+                        setState(() {
+                          streamLoaded = true;
+                          hasError = false;
+                        });
+                      }
+                    });
+                    return child;
+                  }
                   return const Center(child: CircularProgressIndicator());
                 },
                 errorBuilder: (context, error, stackTrace) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (!hasError) {
+                      setState(() {
+                        streamLoaded = false;
+                        hasError = true;
+                      });
+                    }
+                  });
                   return const Center(
                     child: Text(
                       'Failed to load stream',
@@ -81,46 +106,41 @@ class StreamScreen extends StatelessWidget {
                 ),
               ),
             ),
-            const Positioned(
-              bottom: 12,
-              left: 12,
-              child: Text(
-                'Room: Living Room',
-                style: TextStyle(color: Colors.white70),
-              ),
-            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildControlsRow() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
-      children: [
-        _buildControlButton(Icons.mic, 'Mic'),
-        _buildControlButton(Icons.screenshot_monitor, 'Snapshot'),
-        _buildControlButton(Icons.videocam_off, 'Off'),
-      ],
-    );
-  }
-
-  Widget _buildControlButton(IconData icon, String label) {
-    return Column(
-      children: [
-        CircleAvatar(
-          radius: 26,
-          backgroundColor: Colors.grey.shade200,
-          child: Icon(icon, size: 26, color: Colors.black87),
+  Widget _buildFullScreenButton() {
+    return Center(
+      child: GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => FullScreenStreamView(streamUrl: streamUrl),
+            ),
+          );
+        },
+        child: Column(
+          children: [
+            CircleAvatar(
+              radius: 30,
+              backgroundColor: Colors.grey.shade200,
+              child: const Icon(Icons.fullscreen, size: 30, color: Colors.black87),
+            ),
+            const SizedBox(height: 6),
+            const Text('Open Stream', style: TextStyle(fontSize: 14)),
+          ],
         ),
-        const SizedBox(height: 6),
-        Text(label, style: const TextStyle(fontSize: 14)),
-      ],
+      ),
     );
   }
 
-  Widget _buildStatusInfo() {
+  Widget _buildDynamicStatusInfo() {
+    final isConnected = streamLoaded && !hasError;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -136,10 +156,46 @@ class StreamScreen extends StatelessWidget {
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: const [
-          Text('Status: Connected', style: TextStyle(fontSize: 16)),
-          Icon(Icons.check_circle, color: Colors.green),
+        children: [
+          Text(
+            'Status: ${isConnected ? 'Connected' : 'Not Connected'}',
+            style: TextStyle(fontSize: 16, color: isConnected ? Colors.green : Colors.red),
+          ),
+          Icon(
+            isConnected ? Icons.check_circle : Icons.cancel,
+            color: isConnected ? Colors.green : Colors.red,
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class FullScreenStreamView extends StatelessWidget {
+  final String streamUrl;
+
+  const FullScreenStreamView({super.key, required this.streamUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: const Text('Live Stream', style: TextStyle(color: Colors.white)),
+      ),
+      body: Center(
+        child: Image.network(
+          streamUrl,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) {
+            return const Text(
+              'Failed to load stream',
+              style: TextStyle(color: Colors.white),
+            );
+          },
+        ),
       ),
     );
   }
